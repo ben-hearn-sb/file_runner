@@ -36,9 +36,20 @@ import importlib
 import ntpath
 from file_runner_process_dialog import ProcessDialog
 
-class DirectoryFunctions(QtGui.QDialog):
+class FileRunner(QtGui.QDialog):
+	styleSet = False
 	def __init__(self):
 		QtGui.QDialog.__init__(self)
+		try:
+			styleLib = os.environ['STYLE_LIB']
+			darkOrangeStyle = os.path.join(styleLib,'dark_orange.style')
+			with open(darkOrangeStyle) as f:
+				styleSheet = f.read()
+			self.setStyleSheet(styleSheet)
+			self.styleSet = True
+		except:
+			import traceback, sys
+			traceback.print_exc(file=sys.stdout)
 
 		qAppData = str(QtGui.QDesktopServices.storageLocation(QtGui.QDesktopServices.DataLocation))
 		self.appDataDir = os.path.join(qAppData, 'CUSTOM_DIR')
@@ -49,14 +60,14 @@ class DirectoryFunctions(QtGui.QDialog):
 
 		self.processDialog = ProcessDialog(fixedHeight=100)
 
-		self.dirIn = QtGui.QDialog()
-		self.dirIn.resize(1000, 500)
-		self.dirIn.setWindowTitle("File Runner")
-		self.dirIn.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
-		width = self.dirIn.width()
+		self.resize(1000, 500)
+		self.setWindowTitle("File Runner")
+		self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+		width = self.width()
 
 		# Master display is the table view that shows our
 		self.masterDisplay = QtGui.QTableWidget()
+		self.masterDisplay.setObjectName('master_display')
 		self.masterDisplay.setColumnCount(2)
 		self.masterDisplay.setHorizontalHeaderLabels(['Directories', 'Format'])
 		# Setting the stretch to expand with the table
@@ -65,10 +76,10 @@ class DirectoryFunctions(QtGui.QDialog):
 		self.masterDisplay.horizontalHeader().setResizeMode(1, QtGui.QHeaderView.Stretch)
 		self.masterDisplay.verticalHeader().hide()
 		self.masterDisplay.setObjectName('master_display')
-		self.masterDisplay.itemPressed .connect(lambda: self.setFocusWidget(self.masterDisplay))
 
 		# Script layout
 		self.scriptPaths = QtGui.QTableWidget()
+		self.scriptPaths.setObjectName('script_paths')
 		self.scriptPaths.setColumnCount(3)
 		self.scriptPaths.setHorizontalHeaderLabels(['Script Name', 'Function Name', 'Recursive'])
 		self.scriptPaths.horizontalHeader().setResizeMode(0, QtGui.QHeaderView.Interactive)
@@ -78,7 +89,6 @@ class DirectoryFunctions(QtGui.QDialog):
 		self.scriptPaths.setSelectionMode(QtGui.QAbstractItemView.SingleSelection)
 		self.scriptPaths.verticalHeader().hide()
 		self.scriptPaths.setObjectName('script_paths')
-		self.scriptPaths.itemPressed.connect(lambda: self.setFocusWidget(self.scriptPaths))
 
 		# Create target layout
 		btnRun = QtGui.QPushButton('Run On Selected')
@@ -99,72 +109,26 @@ class DirectoryFunctions(QtGui.QDialog):
 		masterLayout.addLayout(appLayout)
 		masterLayout.addWidget(self.processDialog)
 
-		self.masterDisplay.setAcceptDrops(True)
-		self.masterDisplay.dragEnterEvent = self.dragEnterEvent
-		self.masterDisplay.dragMoveEvent = self.dragMoveEvent
-		self.masterDisplay.dropEvent = self.dropEvent
+		self.masterDisplay.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+		self.scriptPaths.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+		self.masterDisplay.customContextMenuRequested.connect(lambda:self.customContextActions(table=self.masterDisplay))
+		self.masterDisplay.itemChanged.connect(self.itemChanged)
+		self.scriptPaths.customContextMenuRequested.connect(lambda:self.customContextActions(table=self.scriptPaths))
 
-		self.scriptPaths.setAcceptDrops(True)
-		self.scriptPaths.dragEnterEvent = self.dragEnterEvent
-		self.scriptPaths.dragMoveEvent = self.dragMoveEvent
-		self.scriptPaths.dropEvent = self.scriptDropEvent
-
+		self.scriptPaths.itemChanged.connect(self.itemChanged)
 		btnCreateAppData.pressed.connect(self.createAppData)
 		btnRemoveDir.pressed.connect(self.removeDir)
 		btnRun.pressed.connect(self.runOnSelected)
 
-		self.dirIn.setLayout(masterLayout)
+		# Temporarily blocking the signals so the UI can be setup correctly without calling the above
+		self.masterDisplay.blockSignals(True)
+		self.scriptPaths.blockSignals(True)
+
+		self.setLayout(masterLayout)
 		self.setupUI()
 
-	def show(self):
-		self.dirIn.show()
-
-	def setFocusWidget(self, table):
-		self.inFocusWidget = table
-
-	""" Overidden QT drag/drop events """
-	def dragEnterEvent(self, event):
-		event.accept()
-
-	def dragMoveEvent(self, event):
-		event.accept()
-
-	def dropEvent(self, event):
-		md = event.mimeData()
-		if md.hasUrls():
-			for url in md.urls():
-				urlPath = url.toLocalFile().toLocal8Bit().data()
-				self.masterDisplay.insertRow(self.masterDisplay.rowCount())
-				rowNum = self.masterDisplay.rowCount()-1
-				item = QtGui.QTableWidgetItem(urlPath)
-				formatItem = QtGui.QTableWidgetItem('')
-				item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
-				formatItem.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
-				self.masterDisplay.setItem(rowNum, 0, item)
-				event.accept()
-		else:
-			event.ignore()
-
-	def scriptDropEvent(self, event):
-		md = event.mimeData()
-		if md.hasUrls():
-			for url in md.urls():
-				urlPath = url.toLocalFile().toLocal8Bit().data()
-				if not urlPath.split('.')[-1] in self.allowedScriptExts:
-					continue
-				self.scriptPaths.insertRow(self.scriptPaths.rowCount())
-				rowNum = self.scriptPaths.rowCount()-1
-				item = QtGui.QTableWidgetItem(urlPath)
-				functionNameItem = QtGui.QTableWidgetItem('')
-				item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
-				functionNameItem.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
-				self.scriptPaths.setItem(rowNum, 0, item)
-
-				pWidget = self.setCenterCheckbox()
-				self.scriptPaths.setCellWidget(rowNum, 2, pWidget)
-				event.accept()
-		else:
-			event.ignore()
+		self.masterDisplay.blockSignals(False)
+		self.scriptPaths.blockSignals(False)
 
 	def setCenterCheckbox(self, checked=False):
 		""" Sets a centred checkbox """
@@ -183,35 +147,45 @@ class DirectoryFunctions(QtGui.QDialog):
 	def unpackCheckBox(self, table, row, column):
 		return table.cellWidget(row, column).layout().itemAt(0).widget().isChecked()
 
-	def chooseDir(self):
-		""" Allows the user to choose a new directory when you right click """
-		dirPath = self.openWindowsBrowser()
-		indices = self.masterDisplay.selectedIndexes()
-		if dirPath:
-			dirPath = self.fixPathing(dirPath)
-			if not os.path.isdir(dirPath):
-				return
-			for i in indices:
-				row = i.row()
-				self.createQtContent(dirPath, row, 0, self.masterDisplay)
+	def customContextActions(self, table):
+		if table.objectName() == 'master_display':
+			getFile=False
+			options = ['Add Directory', 'Remove Selected']
+		else:
+			getFile=True
+			options = ['Add Script', 'Remove Selected']
 
-	def addFormat(self, formatString=''):
-		""" Adds the format string to the format column """
-		indices = self.masterDisplay.selectedIndexes()
-		for i in indices:
-			row = i.row()
-			column = i.column()
-			self.addFormatItem(row, column, formatString)
+		runmenu = QtGui.QMenu(self)
+		for o in options:
+			runmenu.addAction(o)
+		action = runmenu.exec_(QtGui.QCursor.pos())
+		if action:
+			actionText = str(action.text())
+			if actionText == options[0]:
+				path = self.openWindowsBrowser(getFile=getFile)
+				if not path:
+					return
+				rowCount = table.rowCount()
+				table.insertRow(rowCount)
+				self.createQtContent(content=path, row=rowCount, column=0, table=table)
+				if getFile:
+					pWidget = self.setCenterCheckbox()
+					self.scriptPaths.setCellWidget(rowCount, 2, pWidget)
+				self.createAppData()
+			elif actionText == options[1]:
+				self.removeDir(table=table)
+				self.createAppData()
 
-	def addFormatItem(self, row, column, exportFormat):
-		""" Adds a Qt item to the  """
-		formatItem = QtGui.QTableWidgetItem(exportFormat)
-		formatItem.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
-		self.masterDisplay.setItem(row, column, formatItem)
+	def itemChanged(self, item):
+		if item.column() == 1:
+			self.createAppData()
 
-	def openWindowsBrowser(self):
-		dirPath = QtGui.QFileDialog.getExistingDirectory(None, 'Select Directory')
-		return dirPath
+	def openWindowsBrowser(self, getFile=False):
+		if getFile:
+			path = QtGui.QFileDialog.getOpenFileName(None, 'Select Directory', '*.py')
+		else:
+			path = QtGui.QFileDialog.getExistingDirectory(None, 'Select Directory')
+		return path
 
 	def createAppData(self):
 		""" We create an appdata file in this function to store the source level directories and export location """
@@ -284,35 +258,27 @@ class DirectoryFunctions(QtGui.QDialog):
 	def createQtContent(self, content, row, column, table):
 		""" Creates a QTableWidgetItem """
 		item = QtGui.QTableWidgetItem(content)
+		if self.styleSet:
+			item.setTextColor(QtGui.QColor('white'))
 		if column == 1:
 			item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
 		else:
 			item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
 		table.setItem(row, column, item)
 
-	def fixPathing(self, filePath):
-		return filePath.replace('\\', '/')
-
-	def removeDir(self):
-		""" Removes the directory from the UI and saves the file
-		    Important tip is to remove rows incrementally in reverse
+	def removeDir(self, table=None):
 		"""
-		try:
-			indices = self.inFocusWidget.selectedIndexes()
-		except AttributeError:
-			self.processDialog.updateLog(message='Please ensure widget is active', error=True)
-			return
-		# Get all row index
+			Removes the directory from the UI and saves the file
+			Important tip is to remove rows incrementally in reverse
+		"""
 		indexes = []
+		indices = table.selectedItems()
 		for i in indices:
 			indexes.append(i.row())
-		# Reverse sort rows indexes
 		indexes = sorted(indexes, reverse=True)
-
-		# Delete rows
 		for rowidx in indexes:
 			print 'removing', rowidx
-			self.inFocusWidget.removeRow(rowidx)
+			table.removeRow(rowidx)
 
 	def runOnSelected(self):
 		"""
@@ -396,7 +362,7 @@ def main():
 	""" Setting our Qt application up and setting a name for it """
 	app = QtGui.QApplication(sys.argv)
 	app.setApplicationName("FILE_RUNNER")
-	window = DirectoryFunctions()
+	window = FileRunner()
 	window.show()
 	sys.exit(app.exec_())
 

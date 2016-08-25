@@ -13,6 +13,7 @@ for /l %%a in (1,1,100) do if "!CGROOT:~-1!"==" " set CGROOT=!CGROOT:~0,-1!
 
 set PROJECT_APP_DIR=_FILE_RUNNER_
 set APPDATA_SOURCE=asset_source_location.p
+set STYLE_LIB=%CGROOT%\%ROOTDIR%\style
 
 set PYTHONPATH=C:\Anaconda\Lib\site-packages;%CGROOT%\%ROOTDIR%
 
