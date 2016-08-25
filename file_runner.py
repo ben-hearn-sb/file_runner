@@ -37,19 +37,8 @@ import ntpath
 from file_runner_process_dialog import ProcessDialog
 
 class FileRunner(QtGui.QDialog):
-	styleSet = False
 	def __init__(self):
 		QtGui.QDialog.__init__(self)
-		try:
-			styleLib = os.environ['STYLE_LIB']
-			darkOrangeStyle = os.path.join(styleLib,'dark_orange.style')
-			with open(darkOrangeStyle) as f:
-				styleSheet = f.read()
-			self.setStyleSheet(styleSheet)
-			self.styleSet = True
-		except:
-			import traceback, sys
-			traceback.print_exc(file=sys.stdout)
 
 		qAppData = str(QtGui.QDesktopServices.storageLocation(QtGui.QDesktopServices.DataLocation))
 		self.appDataDir = os.path.join(qAppData, 'CUSTOM_DIR')
@@ -92,7 +81,7 @@ class FileRunner(QtGui.QDialog):
 
 		# Create target layout
 		btnRun = QtGui.QPushButton('Run On Selected')
-		
+
 		masterLayout = QtGui.QVBoxLayout()
 		masterLayout.addWidget(self.masterDisplay)
 		masterLayout.addWidget(self.scriptPaths)
@@ -247,8 +236,6 @@ class FileRunner(QtGui.QDialog):
 	def createQtContent(self, content, row, column, table):
 		""" Creates a QTableWidgetItem """
 		item = QtGui.QTableWidgetItem(content)
-		if self.styleSet:
-			item.setTextColor(QtGui.QColor('white'))
 		if column == 1:
 			item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable)
 		else:
