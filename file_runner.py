@@ -92,32 +92,21 @@ class FileRunner(QtGui.QDialog):
 
 		# Create target layout
 		btnRun = QtGui.QPushButton('Run On Selected')
-		targetLayout = QtGui.QHBoxLayout()
-		targetLayout.addWidget(btnRun)
-
-		# Create appdata button layout
-		btnCreateAppData = QtGui.QPushButton('Save Locations')
-		btnRemoveDir = QtGui.QPushButton('Remove Entry')
-		appLayout = QtGui.QHBoxLayout()
-		appLayout.addWidget(btnCreateAppData)
-		appLayout.addWidget(btnRemoveDir)
-
+		
 		masterLayout = QtGui.QVBoxLayout()
 		masterLayout.addWidget(self.masterDisplay)
 		masterLayout.addWidget(self.scriptPaths)
-		masterLayout.addLayout(targetLayout)
-		masterLayout.addLayout(appLayout)
+		masterLayout.addWidget(btnRun)
 		masterLayout.addWidget(self.processDialog)
 
 		self.masterDisplay.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-		self.scriptPaths.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 		self.masterDisplay.customContextMenuRequested.connect(lambda:self.customContextActions(table=self.masterDisplay))
 		self.masterDisplay.itemChanged.connect(self.itemChanged)
-		self.scriptPaths.customContextMenuRequested.connect(lambda:self.customContextActions(table=self.scriptPaths))
 
+		self.scriptPaths.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+		self.scriptPaths.customContextMenuRequested.connect(lambda:self.customContextActions(table=self.scriptPaths))
 		self.scriptPaths.itemChanged.connect(self.itemChanged)
-		btnCreateAppData.pressed.connect(self.createAppData)
-		btnRemoveDir.pressed.connect(self.removeDir)
+
 		btnRun.pressed.connect(self.runOnSelected)
 
 		# Temporarily blocking the signals so the UI can be setup correctly without calling the above
