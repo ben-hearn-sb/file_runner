@@ -9,9 +9,9 @@ def changeFileParams(inputFile=''):
 	path, ext = os.path.splitext(inputFile)
 	fileName = path.split('/')[-1]
 	data = returnJsonAsDict(jsonPath=inputFile, ordered=True)
-	#data['name'] = fileName
-	data['name'] = 'example_file'
-	data['uvSets'] = 0
+	data['name'] = fileName
+	#data['name'] = 'example_file'
+	data['uvSets'] = 2
 	writeJsonFile(fileData=data, outFile=inputFile)
 
 def returnJsonAsDict(jsonPath='', ordered=False):
