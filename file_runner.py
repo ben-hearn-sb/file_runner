@@ -35,6 +35,7 @@ import ast
 import importlib
 import ntpath
 from file_runner_process_dialog import ProcessDialog
+import cPickle
 
 class FileRunner(QtGui.QDialog):
 	def __init__(self):
@@ -42,6 +43,7 @@ class FileRunner(QtGui.QDialog):
 
 		qAppData = str(QtGui.QDesktopServices.storageLocation(QtGui.QDesktopServices.DataLocation))
 		self.appDataDir = os.path.join(qAppData, 'CUSTOM_DIR')
+		self.appDataFile = 'file_runner.p'
 		if not os.path.exists(self.appDataDir):
 			os.makedirs(self.appDataDir)
 		self.inFocusWidget = None
@@ -167,10 +169,10 @@ class FileRunner(QtGui.QDialog):
 
 	def createAppData(self):
 		""" We create an appdata file in this function to store the source level directories and export location """
-		appDataFile = os.path.join(self.appDataDir, 'custom_dirs.txt')
-		appDataDict = {}
+		appDataFile = os.path.join(self.appDataDir, self.appDataFile)
+		directoriesDict = {}
 		scriptDataDict = {}
-		tableWidgets = {self.masterDisplay:appDataDict, self.scriptPaths:scriptDataDict}
+		tableWidgets = {self.masterDisplay:directoriesDict, self.scriptPaths:scriptDataDict}
 		for table in tableWidgets:
 			for r in range(table.rowCount()):
 				for c in range(table.columnCount()):
@@ -185,42 +187,50 @@ class FileRunner(QtGui.QDialog):
 						checkBoxResult = self.unpackCheckBox(table, r, c)
 						format_function += '**' + str(checkBoxResult)
 
-				tableWidgets[table].update({source:format_function})
+				if source in tableWidgets[table]:
+					tableWidgets[table][source].append(format_function)
+				else:
+					tableWidgets[table].update({source:[format_function]})
 
-		with open(appDataFile, 'w+') as appDataFile:
-			appDataFile.write(str(appDataDict)+'\n')
-			appDataFile.write(str(scriptDataDict))
+		#with open(appDataFile, 'w+') as appDataFile:
+		#	appDataFile.write(str(directoriesDict)+'\n')
+		#	appDataFile.write(str(scriptDataDict))
+		data = {'directories':directoriesDict, 'scripts':scriptDataDict}
+		self.dumpToPickleFile(pickleFilePath=appDataFile, data=data)
 
 	def setupUI(self):
 		""" Sets up the table UI on first boot """
-		appDataFile = os.path.join(self.appDataDir, 'custom_dirs.txt')
+		appDataFile = os.path.join(self.appDataDir, self.appDataFile)
 		exportDirs = None
 		scriptPaths = None
 		if not os.path.exists(appDataFile):
 			return
 		else:
-			with open(appDataFile) as f:
-				i = 0
-				for line in f:
-					if i == 0:
-						exportDirs = ast.literal_eval(line)
-					elif i == 1:
-						scriptPaths = ast.literal_eval(line)
-					i += 1
-			dicts = [exportDirs, scriptPaths]
-			for index, d in enumerate(dicts):
-				if index == 0:
+			#with open(appDataFile) as f:
+			#	i = 0
+			#	for line in f:
+			#		if i == 0:
+			#			exportDirs = ast.literal_eval(line)
+			#		elif i == 1:
+			#			scriptPaths = ast.literal_eval(line)
+			#		i += 1
+			#dicts = [exportDirs, scriptPaths]
+			data = self.unpickleFile(filePath=appDataFile)
+			dicts = [data['directories'], data['scripts']]
+			for key in data:
+				if key == 'directories':
 					table = self.masterDisplay
-				elif index == 1:
+				elif key == 'scripts':
 					table = self.scriptPaths
-				if len(d) > 0:
-					for index, source in enumerate(d):
+
+				for filePath in data[key]:
+					for index, source in enumerate(data[key][filePath]):
 						table.insertRow(index)
-						content = d[source]
+						content = source
 
 						# If our table is script_paths we need to split our value to get our true/false checkbox value
 						if table.objectName() == 'script_paths':
-							temp = d[source].split('**')
+							temp = content.split('**')
 							content = temp[0]
 							checked = temp[1]
 							if checked == 'True':
@@ -230,7 +240,7 @@ class FileRunner(QtGui.QDialog):
 							pWidget = self.setCenterCheckbox(checked)
 							table.setCellWidget(index, 2, pWidget)
 
-						self.createQtContent(source, index, 0, table)
+						self.createQtContent(filePath, index, 0, table)
 						self.createQtContent(content, index, 1, table)
 
 	def createQtContent(self, content, row, column, table):
@@ -332,6 +342,12 @@ class FileRunner(QtGui.QDialog):
 			if os.path.splitext(f)[-1] == format:
 				myFile = os.path.join(root, f).replace('\\', '/')
 				func(myFile)
+
+	def unpickleFile(self, filePath):
+		return cPickle.load(open(filePath, 'rb'))
+
+	def dumpToPickleFile(self, pickleFilePath='', data=None):
+		cPickle.dump(data, (open(pickleFilePath, 'wb+')))
 
 
 def main():
