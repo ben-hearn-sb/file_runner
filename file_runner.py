@@ -34,6 +34,7 @@ import os
 import ast
 import importlib
 import ntpath
+from file_runner_process_dialog import ProcessDialog
 
 class DirectoryFunctions(QtGui.QDialog):
 	def __init__(self):
@@ -46,8 +47,10 @@ class DirectoryFunctions(QtGui.QDialog):
 		self.inFocusWidget = None
 		self.allowedScriptExts = ['py']
 
+		self.processDialog = ProcessDialog(fixedHeight=100)
+
 		self.dirIn = QtGui.QDialog()
-		self.dirIn.resize(850, 450)
+		self.dirIn.resize(1000, 500)
 		self.dirIn.setWindowTitle("File Runner")
 		self.dirIn.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
 		width = self.dirIn.width()
@@ -94,13 +97,12 @@ class DirectoryFunctions(QtGui.QDialog):
 		masterLayout.addWidget(self.scriptPaths)
 		masterLayout.addLayout(targetLayout)
 		masterLayout.addLayout(appLayout)
+		masterLayout.addWidget(self.processDialog)
 
 		self.masterDisplay.setAcceptDrops(True)
 		self.masterDisplay.dragEnterEvent = self.dragEnterEvent
 		self.masterDisplay.dragMoveEvent = self.dragMoveEvent
 		self.masterDisplay.dropEvent = self.dropEvent
-		#self.masterDisplay.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-		#self.masterDisplay.customContextMenuRequested.connect(self.openMenu)
 
 		self.scriptPaths.setAcceptDrops(True)
 		self.scriptPaths.dragEnterEvent = self.dragEnterEvent
@@ -117,7 +119,6 @@ class DirectoryFunctions(QtGui.QDialog):
 	def show(self):
 		self.dirIn.show()
 
-# ----------------------------------------------------------------------------------------------- #
 	def setFocusWidget(self, table):
 		self.inFocusWidget = table
 
@@ -143,8 +144,6 @@ class DirectoryFunctions(QtGui.QDialog):
 				event.accept()
 		else:
 			event.ignore()
-
-# ----------------------------------------------------------------------------------------------- #
 
 	def scriptDropEvent(self, event):
 		md = event.mimeData()
@@ -181,12 +180,8 @@ class DirectoryFunctions(QtGui.QDialog):
 		pWidget.setLayout(pLayout)
 		return pWidget
 
-# ----------------------------------------------------------------------------------------------- #
-
 	def unpackCheckBox(self, table, row, column):
 		return table.cellWidget(row, column).layout().itemAt(0).widget().isChecked()
-
-# ----------------------------------------------------------------------------------------------- #
 
 	def chooseDir(self):
 		""" Allows the user to choose a new directory when you right click """
@@ -198,9 +193,7 @@ class DirectoryFunctions(QtGui.QDialog):
 				return
 			for i in indices:
 				row = i.row()
-				self.createQtContent(dirPath, row, 0, True)
-
-# ----------------------------------------------------------------------------------------------- #
+				self.createQtContent(dirPath, row, 0, self.masterDisplay)
 
 	def addFormat(self, formatString=''):
 		""" Adds the format string to the format column """
@@ -210,21 +203,15 @@ class DirectoryFunctions(QtGui.QDialog):
 			column = i.column()
 			self.addFormatItem(row, column, formatString)
 
-# ----------------------------------------------------------------------------------------------- #
-
 	def addFormatItem(self, row, column, exportFormat):
 		""" Adds a Qt item to the  """
 		formatItem = QtGui.QTableWidgetItem(exportFormat)
 		formatItem.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
 		self.masterDisplay.setItem(row, column, formatItem)
 
-# ----------------------------------------------------------------------------------------------- #
-
 	def openWindowsBrowser(self):
 		dirPath = QtGui.QFileDialog.getExistingDirectory(None, 'Select Directory')
 		return dirPath
-
-# ----------------------------------------------------------------------------------------------- #
 
 	def createAppData(self):
 		""" We create an appdata file in this function to store the source level directories and export location """
@@ -251,8 +238,6 @@ class DirectoryFunctions(QtGui.QDialog):
 		with open(appDataFile, 'w+') as appDataFile:
 			appDataFile.write(str(appDataDict)+'\n')
 			appDataFile.write(str(scriptDataDict))
-
-# ----------------------------------------------------------------------------------------------- #
 
 	def setupUI(self):
 		""" Sets up the table UI on first boot """
@@ -296,8 +281,6 @@ class DirectoryFunctions(QtGui.QDialog):
 						self.createQtContent(source, index, 0, table)
 						self.createQtContent(content, index, 1, table)
 
-# ----------------------------------------------------------------------------------------------- #
-
 	def createQtContent(self, content, row, column, table):
 		""" Creates a QTableWidgetItem """
 		item = QtGui.QTableWidgetItem(content)
@@ -307,21 +290,17 @@ class DirectoryFunctions(QtGui.QDialog):
 			item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
 		table.setItem(row, column, item)
 
-# ----------------------------------------------------------------------------------------------- #
-
 	def fixPathing(self, filePath):
-		""" Replaces pathing slashes """
 		return filePath.replace('\\', '/')
-
-# ----------------------------------------------------------------------------------------------- #
 
 	def removeDir(self):
 		""" Removes the directory from the UI and saves the file
-		    Important tip is to remove rows incrementally in reverse """
+		    Important tip is to remove rows incrementally in reverse
+		"""
 		try:
 			indices = self.inFocusWidget.selectedIndexes()
 		except AttributeError:
-			QtGui.QMessageBox.information(self.masterDisplay, 'Info','Please ensure widget is active')
+			self.processDialog.updateLog(message='Please ensure widget is active', error=True)
 			return
 		# Get all row index
 		indexes = []
@@ -335,17 +314,18 @@ class DirectoryFunctions(QtGui.QDialog):
 			print 'removing', rowidx
 			self.inFocusWidget.removeRow(rowidx)
 
-		# ----------------------------------------------------------------------------------------------- #
-
 	def runOnSelected(self):
-		""" Runs over the selected directories
+		"""
+			Runs over the selected directories
 			Runs some checks on directories, file pathing, format etc.
 		"""
+		self.processDialog.clearLog()
+		self.processDialog.updateLog(message='Running pre-function checks')
 		indices = self.masterDisplay.selectedIndexes()
 		scriptPathIndices   = self.scriptPaths.selectedItems()
 
 		if len(indices) < 1 or len(scriptPathIndices)< 1:
-			QtGui.QMessageBox.information(self.masterDisplay, 'Info','Please select a script and relevant directories')
+			self.processDialog.updateLog(message='Please select a script and relevant directories', error=True)
 			return
 
 		row                 = scriptPathIndices[0].row()
@@ -354,8 +334,9 @@ class DirectoryFunctions(QtGui.QDialog):
 		scriptName          = ntpath.basename(scriptPath).split('.')[0]
 		functionName        = str(self.scriptPaths.item(row, 1).text())
 		recursive           = self.unpackCheckBox(self.scriptPaths, row, 2)
+
 		if not os.path.exists(scriptPath):
-			QtGui.QMessageBox.information(self.masterDisplay, 'Info','Your script no longer lives in this location\nPlease remove entry and choose new location')
+			self.processDialog.updateLog(message='Your script no longer lives in this location\nPlease remove entry and choose new location', error=True)
 			return
 
 		if not scriptDir in sys.path:
@@ -363,17 +344,15 @@ class DirectoryFunctions(QtGui.QDialog):
 		try:
 			externalFunc = getattr(importlib.import_module(scriptName), functionName)
 		except AttributeError:
-			QtGui.QMessageBox.information(self.masterDisplay, 'Info','Please check script pathing and function name is correct')
+			self.processDialog.updateLog(message='Please check script pathing and function name is correct',error=True)
 			return
-
-		print 'Running'
 
 		checkDirs = self.checkExistingDirs(indices)
 		if len(checkDirs) > 0:
 			nonExistent = ''
 			for d in checkDirs:
 				nonExistent += d + '\n'
-			QtGui.QMessageBox.information(self.masterDisplay, 'Info','One or more selected dirs does not exist\n%s'%nonExistent)
+			self.processDialog.updateLog(message='One or more selected dirs does not exist\n%s'%nonExistent, error=True)
 			return
 
 		# Once all our checks are done we can run the main chunk of the function
@@ -383,7 +362,7 @@ class DirectoryFunctions(QtGui.QDialog):
 			formatString = self.masterDisplay.item(row, 1)
 
 			if sourceDir is None or formatString is None or sourceDir == '' or formatString == '':
-				QtGui.QMessageBox.information(self.masterDisplay, 'Info','Cannot run without a source dir or format')
+				self.processDialog.updateLog(message='Cannot run without a source dir or format' ,error=True)
 				return
 
 			sourceDir = str(sourceDir.text())
@@ -393,7 +372,7 @@ class DirectoryFunctions(QtGui.QDialog):
 				if recursive == False:
 					break
 
-		QtGui.QMessageBox.information(self.masterDisplay, 'Info', 'Process complete')
+		self.processDialog.updateLog(message='Process complete', success=True)
 
 	def checkExistingDirs(self, indices):
 		nonExistent = []
@@ -409,7 +388,7 @@ class DirectoryFunctions(QtGui.QDialog):
 			return
 		for f in files:
 			if os.path.splitext(f)[-1] == format:
-				myFile = os.path.join(root, f)
+				myFile = os.path.join(root, f).replace('\\', '/')
 				func(myFile)
 
 
